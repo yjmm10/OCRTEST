@@ -81,8 +81,10 @@ def parse(str="""
 正如只有经过泥滨的道路才会留下脚印111 
 
 """, ocr_result_dir=None):
+    print(str)
+# OCR(DlpOCR) $version$: 1.0.0.8 on Nov 26 2021 17:25:16	, System $version$: 10.0
     version = re.findall(
-        r"OCR\(DlpOCR\) \$version\$: (.*) on (.*)	, System \$version\$: (\d+.\d+)\n", str, re.S)
+        r"OCR\(DlpOCR\) \$version\$: (.*) on (.*)	, System \$version\$: (\d+.\d+)", str, re.S)
     print(
         f"最近重启的OCR组件版本：{version[0][0]}\t时间：{version[0][1]}\t系统版本：{version[0][2]}")
     num_failed, num_success = len(list(re.finditer(
@@ -99,7 +101,7 @@ def parse(str="""
         temp = []
         imgpath_last = re.findall(r"Image Path: (.*)\n?", item[0])[-1]
         temp.append(os.path.splitext(os.path.basename(imgpath_last))[0])
-        temp.append(float(item[1]))
+        temp.append(item[1])
         temp.append(item[2])
         valid_info.append(temp)
 
@@ -123,8 +125,6 @@ def get_all_str(filepath: str) -> str:
     return result
 
 # 获取相同文件
-
-
 def get_same_file(dir1: str, dir2: str) -> List:
     # 假设同一目录下文本名称不相同,其只有文件
     dir1_list = [i for i in os.listdir(dir1)]
@@ -137,7 +137,7 @@ def get_same_file(dir1: str, dir2: str) -> List:
     return same_list
 
 
-def get_same_str(str1="12345678aa", str2="1234567890"):
+def get_same_str(str1="12345678aa", str2="12345678909"):
     import copy
     list1, list2 = list(str1), list(str2)
     l1, l2 = len(list1), len(list2)
@@ -151,7 +151,7 @@ def get_same_str(str1="12345678aa", str2="1234567890"):
         d1[i] += 1
     for i in list2:
         d2[i] += 1
-    result = {}
+
     more = 0
     less = 0
     for i in same_list:
@@ -160,19 +160,26 @@ def get_same_str(str1="12345678aa", str2="1234567890"):
             more += temp
         else:
             less += temp
-
-    call = (l1-(more-less))/l2
-    acc = (l1-(more-less))/l1
-    print(call, acc)
+    
+    # 召回率 识别正确/真实正确 - 反应识别错和多识别
+    call = (l1-more)/l2
+    # 准确率 识别正确/识别出的数字 - 反应识别错和漏识别
+    acc = (l1-more)/l1
+    return l1,l2,acc,call
 
 
 def pparse(pre_dir, label_dir):
     # 获取相同文件夹
     same_list = get_same_file(pre_dir, label_dir)
+    res = {}
+    # 获取每个文件的性能
     for file in same_list:
         pre_file = os.path.join(pre_dir, file)
         label_file = os.path.join(label_dir, file)
         pre_str, label_str = get_all_str(pre_file), get_all_str(label_file)
+        l1,l2,acc,call = get_same_str(pre_str, label_str)
+        res[file]= [l1,l2,acc,call]
+    return res
 
     #
 
@@ -181,15 +188,30 @@ def main():
     filepath = "TextExtractor_OCR(1).log"
     ocr_result_dir = "dlpocr_temp"
     # 真实值
-    label = "dlpocr_label"
+    label_dir = "dlpocr_label"
 
+    str =read_file(filepath)
     # 获取到处理后的数据,并打印文件
-    valid_info = parse(ocr_result_dir=ocr_result_dir)
+    valid_info = parse(str=str,ocr_result_dir=ocr_result_dir)
 
-    # 比对文本
+    data = pparse(ocr_result_dir, label_dir)
 
+    for i in valid_info:
+        if i[0]+".txt" in data.keys():
+            data[i[0]+".txt"].append(float(i[1]))
+    with open("result.csv","w",encoding="utf-8") as f:
+        f.write("路径,预测文本长度,真实文本,召回率,准确率,耗时\n")
+    with open("result.csv","a+",encoding="utf-8") as f:
+        for key in data.keys():
+            f.write(f"{key},{data[key][0]},{data[key][1]},{data[key][2]},{data[key][3]},{data[key][4]}\n")
 
 if __name__ == '__main__':
-    # main()
-    # get_all_str(r"temp/图片 3.txt")
-    get_same_str()
+    print("""
+    使用说明：
+    1. 本程序只针对dlplog的debug日志有效
+    2. 请确保在dlpocr_temp同级目录有dlpocr_label文件夹
+    3. 且2中文件夹下的文件名一一对应且不重名，如1.png-> 1.txt
+    4. 生成的结果在result.csv中
+    """)
+    main()
+
