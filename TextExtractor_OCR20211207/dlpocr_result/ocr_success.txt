@@ -1,0 +1,3 @@
+C:\Users\lyf\Desktop\OCRtest\1\180.jpg
+C:\Users\lyf\Desktop\OCRtest\1\left90.jpg
+C:\Users\lyf\Desktop\OCRtest\1\right90.jpg

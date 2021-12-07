@@ -32,7 +32,7 @@ def split_module(str: str):
 
 
 class Parse(object):
-    def __init__(self, dlpocr_dir=None) -> None:
+    def __init__(self, dlpocr_dir=None,result_dir=None) -> None:
         # super().__init__()
         if dlpocr_dir is None:
             self.dlpocr_dir = "dlpocr_dir"
@@ -40,7 +40,9 @@ class Parse(object):
         if not os.path.exists(self.dlpocr_dir):
             os.makedirs(self.dlpocr_dir)
         print(f"将日志中采集到的文本识别结果存放在{os.path.abspath(self.dlpocr_dir)}")
-        self.result_dir = "dlpocr_result"
+        if result_dir is None:
+            self.result_dir = "dlpocr_result"
+        self.result_dir=result_dir
         if not os.path.exists(self.result_dir):
             os.makedirs(self.result_dir)
         print(f"将日志分析结果存放在{os.path.abspath(self.result_dir)}")
@@ -263,7 +265,7 @@ def pparse(pre_dir, label_dir,rmsignal):
     return res
 
 
-def main(root, dlpocr_dir, label_dir, result):
+def main(root, dlpocr_dir, label_dir, result_dir):
     # 真实值
 
     if not os.path.exists(label_dir):
@@ -271,18 +273,18 @@ def main(root, dlpocr_dir, label_dir, result):
         os.makedirs(label_dir)
         return
 
-    if not os.path.exists(result):
-        os.makedirs(result)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
     str_rmsignal = input("是否计算标点符号(默认：1) 1)是 2)否 ")
     if str_rmsignal=="1" or str_rmsignal=="":
         rmsignal=True;
     if str_rmsignal=="2":
         rmsignal=False    
 
-    p = Parse(dlpocr_dir=dlpocr_dir)
+    p = Parse(dlpocr_dir=dlpocr_dir,result_dir=result_dir)
     valid_infos = p.task(filepath)
 
-    result_path = os.path.join(result, "result.csv")
+    result_path = os.path.join(result_dir, "result.csv")
     print(f"性能测试的结果文件路径：{os.path.abspath(result_path)}")
     with open(result_path, "a+", encoding="utf-8") as f:
         f.write("路径,预测文本长度,真实文本,召回率,准确率,耗时\n")
@@ -336,8 +338,8 @@ if __name__ == '__main__':
 
         dlpocr_dir = os.path.join(root, "dlpocr_dir")
         label_dir = os.path.join(root, "dlpocr_label")
-        result = os.path.join(root, "dlpocr_result")
-        main(root, dlpocr_dir, label_dir, result)
+        result_dir = os.path.join(root, "dlpocr_result")
+        main(root, dlpocr_dir, label_dir, result_dir)
     if mode == "2":
         filepath = input("请输入要清理的文件夹对应的日志文件名：")
         if filepath[0] == "2":
