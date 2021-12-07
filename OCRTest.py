@@ -48,6 +48,10 @@ class Parse(object):
 
     # 对整个日志进行分析,输出每次启动的有效日志（有文件输入）
     def split_from_str(self, str_all: str) -> Union[None, List]:
+        if str_all is None:
+            print("日志文件没有内容")
+            return None
+        str_all = str_all.replace("\r\n***********************************************TextExtractor_OCR.log stoped***********************************************\r\n","")
         str_every_times = str_all.split(
             "***********************************************TextExtractor_OCR.log started***********************************************")
         if len(str_every_times) <= 1:
@@ -58,7 +62,6 @@ class Parse(object):
         print(f"共启动{len(str_every_times)}次OCR组件")
 
         return str_every_times
-
     def split_from_file(self, filepath: str) -> Union[None, List]:
         assert os.path.exists(filepath), print(
             os.path.abspath(filepath)+"文件不存在")
@@ -123,11 +126,16 @@ class Parse(object):
                        filename), path+"\n", mode="a+")
         return path
 
+    # 获取识别的时间 
     def _get_time(self, ocr_image: str) -> float:
         return float(re.findall(r"OCR Parse Success, Cost Time: (.*?)ms", ocr_image)[0])
 
+    # 获取识别结果 
     def _get_result(self, ocr_image: str):
-        return re.findall(r": OCR Result:? \r\n(.*)\r\n\r\n", ocr_image, re.S)[0]
+        str = re.findall(r": OCR Result:? \r\n(.*)\r\n\r\n", ocr_image, re.S)[0]
+        if "OCR Release...." in str:
+            str = re.sub("\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} .*OCR Release....?","",str)
+        return str
 
     def process_ocr_images(self, ocr_images: List) -> Union[None, Tuple[List, List, List]]:
         if len(ocr_images) == 0:
@@ -186,11 +194,14 @@ class Parse(object):
 # 读取文件所有内容，并清洗
 
 
-def get_all_str(filepath: str) -> str:
+def get_all_str(filepath: str,rmsignal:bool=False) -> str:
     # 获取所有内容
     content = read_file(filepath)
     # 清楚所有的空白
     result = re.sub(r"[\s+\n ]", "", content)
+    if rmsignal:
+        rule =re.compile(r"[^a-zA-Z0-9\u4e00-\u9fa5]")
+        result =rule.sub('',result)
     return result
 
 # 获取相同文件
@@ -238,7 +249,7 @@ def get_same_str(str1="12345678aa", str2="12345678909"):
     return l1, l2, acc, call
 
 
-def pparse(pre_dir, label_dir):
+def pparse(pre_dir, label_dir,rmsignal):
     # 获取相同文件夹
     same_list = get_same_file(pre_dir, label_dir)
     res = {}
@@ -246,8 +257,7 @@ def pparse(pre_dir, label_dir):
     for file in same_list:
         pre_file = os.path.join(pre_dir, file)
         label_file = os.path.join(label_dir, file)
-        pre_file = label_file
-        pre_str, label_str = get_all_str(pre_file), get_all_str(label_file)
+        pre_str, label_str = get_all_str(pre_file,rmsignal), get_all_str(label_file,rmsignal)
         l1, l2, acc, call = get_same_str(pre_str, label_str)
         res[file] = [l1, l2, acc, call]
     return res
@@ -263,6 +273,11 @@ def main(root, dlpocr_dir, label_dir, result):
 
     if not os.path.exists(result):
         os.makedirs(result)
+    str_rmsignal = input("是否计算标点符号(默认：1) 1)是 2)否 ")
+    if str_rmsignal=="1" or str_rmsignal=="":
+        rmsignal=True;
+    if str_rmsignal=="2":
+        rmsignal=False    
 
     p = Parse(dlpocr_dir=dlpocr_dir)
     valid_infos = p.task(filepath)
@@ -279,7 +294,7 @@ def main(root, dlpocr_dir, label_dir, result):
             print("该次提取无有效识别文件")
             continue
 
-        data = pparse(dlpocr_dir, label_dir)
+        data = pparse(dlpocr_dir, label_dir,rmsignal)
 
         for i in valid_info:
             if i[0]+".txt" in data.keys():
@@ -334,9 +349,12 @@ if __name__ == '__main__':
         label_dir = os.path.join(root, "dlpocr_dir")
         result = os.path.join(root, "dlpocr_result")
 
-        shutil.rmtree(label_dir)
-        print(f"删除{label_dir}完成")
-        shutil.rmtree(result)
-        print(f"删除{result}完成")
+        if os.path.exists(label_dir):
+            shutil.rmtree(label_dir)
+
+            print(f"删除{label_dir}完成")
+        if os.path.exists(result):
+            shutil.rmtree(result)
+            print(f"删除{result}完成")
         print("删除完毕")
         # task_clean()
