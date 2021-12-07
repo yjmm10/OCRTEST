@@ -62,7 +62,8 @@ class Parse(object):
     def split_from_file(self, filepath: str) -> Union[None, List]:
         assert os.path.exists(filepath), print(
             os.path.abspath(filepath)+"文件不存在")
-        str_all = read_file(filepath=filepath)
+        str_all = open(filepath, "rb").read().decode('utf-8', errors="ignore")
+        # str_all = read_file(filepath=filepath)
         return self.split_from_str(str_all=str_all)
 
     # 分析单次日志,输出识别的文件数
