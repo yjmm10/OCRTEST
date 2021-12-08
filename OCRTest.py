@@ -32,7 +32,7 @@ def split_module(str: str):
 
 
 class Parse(object):
-    def __init__(self, dlpocr_dir=None,result_dir=None) -> None:
+    def __init__(self, dlpocr_dir=None, result_dir=None) -> None:
         # super().__init__()
         if dlpocr_dir is None:
             self.dlpocr_dir = "dlpocr_dir"
@@ -42,7 +42,7 @@ class Parse(object):
         print(f"将日志中采集到的文本识别结果存放在{os.path.abspath(self.dlpocr_dir)}")
         if result_dir is None:
             self.result_dir = "dlpocr_result"
-        self.result_dir=result_dir
+        self.result_dir = result_dir
         if not os.path.exists(self.result_dir):
             os.makedirs(self.result_dir)
         print(f"将日志分析结果存放在{os.path.abspath(self.result_dir)}")
@@ -53,21 +53,23 @@ class Parse(object):
         if str_all is None:
             print("日志文件没有内容")
             return None
-        str_all = str_all.replace("\r\n***********************************************TextExtractor_OCR.log stoped***********************************************\r\n","")
+        str_all = re.sub("\r\n\*.*\*?\r\n", "", str_all)
         str_every_times = str_all.split(
             "***********************************************TextExtractor_OCR.log started***********************************************")
-        if len(str_every_times) <= 1:
-            print("无日志，请检查后执行")
+        str_every_times = [
+            i for i in str_every_times if r"OCR(DlpOCR) $version$:" in i]
+        if len(str_every_times) == 0:
+            print("日志中不含组件版本信息,请检查")
             return None
 
-        str_every_times = str_every_times[1:]
         print(f"共启动{len(str_every_times)}次OCR组件")
 
         return str_every_times
+
     def split_from_file(self, filepath: str) -> Union[None, List]:
         assert os.path.exists(filepath), print(
             os.path.abspath(filepath)+"文件不存在")
-        str_all = open(filepath, "rb").read().decode('utf-8', errors="ignore")
+        str_all = open(filepath, "rb").read().decode('utf-8')
         # str_all = read_file(filepath=filepath)
         return self.split_from_str(str_all=str_all)
 
@@ -79,14 +81,14 @@ class Parse(object):
             组件版本：{version[0][1]}\t\
             系统版本：{version[0][3]}")
         # 获取每个输入
-        input_ocr_files = log.split("Image Path:")
-        if len(input_ocr_files) <= 1:
+        input_ocr_files = log.split("Image Path:")[1:]
+        if len(input_ocr_files) == 1:
             if index is not None:
                 print(f"第{index}次启动未识别图片")
             else:
                 print("该次启动未识别图片")
             return None
-        input_ocr_files = input_ocr_files[1:]
+
         print(f"共输入 {len(input_ocr_files)} 个文件（包含非图片）")
 
         return input_ocr_files
@@ -128,15 +130,17 @@ class Parse(object):
                        filename), path+"\n", mode="a+")
         return path
 
-    # 获取识别的时间 
+    # 获取识别的时间
     def _get_time(self, ocr_image: str) -> float:
         return float(re.findall(r"OCR Parse Success, Cost Time: (.*?)ms", ocr_image)[0])
 
-    # 获取识别结果 
+    # 获取识别结果
     def _get_result(self, ocr_image: str):
-        str = re.findall(r": OCR Result:? \r\n(.*)\r\n\r\n", ocr_image, re.S)[0]
+        str = re.findall(r": OCR Result:? \r\n(.*)\r\n\r\n",
+                         ocr_image, re.S)[0]
         if "OCR Release...." in str:
-            str = re.sub("\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} .*OCR Release....?","",str)
+            str = re.sub(
+                "\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} .*OCR Release....?", "", str)
         return str
 
     def process_ocr_images(self, ocr_images: List) -> Union[None, Tuple[List, List, List]]:
@@ -174,6 +178,7 @@ class Parse(object):
             # 对日志划分为多个输入文件
             input_ocr_files = self.split_ocr_log(ocr_log, i_log)
             if input_ocr_files is None:
+                print("不存在识别的文件")
                 return None
             # 对输入的文件进行分析，得到有效识别，无法识别，识别错误 列表
             ocr_images, ocr_files_invalid, ocr_images_fail = self.classify_every_file(
@@ -196,14 +201,14 @@ class Parse(object):
 # 读取文件所有内容，并清洗
 
 
-def get_all_str(filepath: str,rmsignal:bool=False) -> str:
+def get_all_str(filepath: str, rmsignal: bool = False) -> str:
     # 获取所有内容
     content = read_file(filepath)
     # 清楚所有的空白
     result = re.sub(r"[\s+\n ]", "", content)
     if rmsignal:
-        rule =re.compile(r"[^a-zA-Z0-9\u4e00-\u9fa5]")
-        result =rule.sub('',result)
+        rule = re.compile(r"[^a-zA-Z0-9\u4e00-\u9fa5]")
+        result = rule.sub('', result)
     return result
 
 # 获取相同文件
@@ -251,7 +256,7 @@ def get_same_str(str1="12345678aa", str2="12345678909"):
     return l1, l2, acc, call
 
 
-def pparse(pre_dir, label_dir,rmsignal):
+def pparse(pre_dir, label_dir, rmsignal):
     # 获取相同文件夹
     same_list = get_same_file(pre_dir, label_dir)
     res = {}
@@ -259,7 +264,8 @@ def pparse(pre_dir, label_dir,rmsignal):
     for file in same_list:
         pre_file = os.path.join(pre_dir, file)
         label_file = os.path.join(label_dir, file)
-        pre_str, label_str = get_all_str(pre_file,rmsignal), get_all_str(label_file,rmsignal)
+        pre_str, label_str = get_all_str(
+            pre_file, rmsignal), get_all_str(label_file, rmsignal)
         l1, l2, acc, call = get_same_str(pre_str, label_str)
         res[file] = [l1, l2, acc, call]
     return res
@@ -276,12 +282,12 @@ def main(root, dlpocr_dir, label_dir, result_dir):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     str_rmsignal = input("是否计算标点符号(默认：1) 1)是 2)否 ")
-    if str_rmsignal=="1" or str_rmsignal=="":
-        rmsignal=True;
-    if str_rmsignal=="2":
-        rmsignal=False    
+    if str_rmsignal == "1" or str_rmsignal == "":
+        rmsignal = True
+    if str_rmsignal == "2":
+        rmsignal = False
 
-    p = Parse(dlpocr_dir=dlpocr_dir,result_dir=result_dir)
+    p = Parse(dlpocr_dir=dlpocr_dir, result_dir=result_dir)
     valid_infos = p.task(filepath)
 
     result_path = os.path.join(result_dir, "result.csv")
@@ -296,7 +302,7 @@ def main(root, dlpocr_dir, label_dir, result_dir):
             print("该次提取无有效识别文件")
             continue
 
-        data = pparse(dlpocr_dir, label_dir,rmsignal)
+        data = pparse(dlpocr_dir, label_dir, rmsignal)
 
         for i in valid_info:
             if i[0]+".txt" in data.keys():
@@ -311,7 +317,7 @@ def main(root, dlpocr_dir, label_dir, result_dir):
 
 if __name__ == '__main__':
     print("""
-    OCR_TEST: 2.0 - 优化输入方式，修改文件读取方式
+    OCR_TEST: 2.3 - 优化日志
     使用说明：
     1. 本程序只针对dlplog的debug日志有效
     2. 执行工具一次，生成相应的文件结构，后根据提示添加dlpocr_label下的标签文件完毕后再执行
@@ -319,6 +325,7 @@ if __name__ == '__main__':
     3. 生成的结果dlpocr_result目录下的result.csv中
     4. 使用日期输入，要求文件格式为TextExtractor_OCR[日期].log，该日期需要以2开头
     5. 清理程序，只清理dlpocr_dir（dlp文本识别结果）、dlpocr_result（dlp性能提取结果）
+    6. 包含两种计算，一种是只计算中英文数字，一种是所有字符串，默认选第一种
     note：程序可分析多次启动，但不建议，单次启动单次分析
     """)
     mode = input("请选择模式  1)ocr性能提取, 2)清理提取数据的文件夹:")
