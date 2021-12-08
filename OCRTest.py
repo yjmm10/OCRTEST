@@ -53,11 +53,13 @@ class Parse(object):
         if str_all is None:
             print("日志文件没有内容")
             return None
-        str_all = re.sub("\r\n\*.*\*?\r\n", "", str_all)
-        str_every_times = str_all.split(
+        str_every_times = str_all.split(  # patt)
             "***********************************************TextExtractor_OCR.log started***********************************************")
+        # str_every_times = re.sub("\r\n\*.*\*?\r\n", "", str_every_times)
+        # patt = re.findall("^\*.*started.*\*", str_all)[0]
+
         str_every_times = [
-            i for i in str_every_times if r"OCR(DlpOCR) $version$:" in i]
+            re.sub("\r\n\*.*\*?\r\n", "", i) for i in str_every_times if r"OCR(DlpOCR) $version$:" in i]
         if len(str_every_times) == 0:
             print("日志中不含组件版本信息,请检查")
             return None
@@ -77,12 +79,13 @@ class Parse(object):
     def split_ocr_log(self, log: str, index=None) -> Union[None, List]:
         version = re.findall(
             r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).*OCR\(DlpOCR\) \$version\$: (.*) on (.*)	, System \$version\$: (\d+.\d+)", log, re.S)
-        print(f"启动时间：{version[0][0]}\t\
+        print("\n"+"-"*50)
+        print(f"第{index}次：启动时间：{version[0][0]}\t\
             组件版本：{version[0][1]}\t\
             系统版本：{version[0][3]}")
         # 获取每个输入
         input_ocr_files = log.split("Image Path:")[1:]
-        if len(input_ocr_files) == 1:
+        if len(input_ocr_files) == 0:
             if index is not None:
                 print(f"第{index}次启动未识别图片")
             else:
@@ -111,10 +114,10 @@ class Parse(object):
         ocr_images = [
             i for i in ocr_files_valid if "OCR Parse Failed" not in i]
         if len(ocr_images) == 0:
-            print(f"支持识别的图片中全部识别失败")
+            print(f"支持识别的图片中全部识别失败\n")
         else:
             print(
-                f"支持识别的图片中识别成功图片数: {len(ocr_images)},成功率：{len(ocr_images)/len(ocr_files_valid)}")
+                f"支持识别的图片中识别成功图片数: {len(ocr_images)},成功率：{len(ocr_images)/len(ocr_files_valid)}\n")
         # 求交集即可获得识别失败的图片
         ocr_images_fail = list(set(ocr_files_valid)-set(ocr_images))
         # if len(ocr_images_fail)==0:
@@ -289,6 +292,8 @@ def main(root, dlpocr_dir, label_dir, result_dir):
 
     p = Parse(dlpocr_dir=dlpocr_dir, result_dir=result_dir)
     valid_infos = p.task(filepath)
+    if valid_infos is None:
+        print("请检查日志格式")
 
     result_path = os.path.join(result_dir, "result.csv")
     print(f"性能测试的结果文件路径：{os.path.abspath(result_path)}")
@@ -317,7 +322,7 @@ def main(root, dlpocr_dir, label_dir, result_dir):
 
 if __name__ == '__main__':
     print("""
-    OCR_TEST: 2.3 - 优化日志
+    OCR_TEST: 2.4 - 修复问题
     使用说明：
     1. 本程序只针对dlplog的debug日志有效
     2. 执行工具一次，生成相应的文件结构，后根据提示添加dlpocr_label下的标签文件完毕后再执行
