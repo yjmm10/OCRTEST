@@ -53,10 +53,13 @@ class Parse(object):
         if str_all is None:
             print("日志文件没有内容")
             return None
-        str_every_times = str_all.split(  # patt)
-            "***********************************************TextExtractor_OCR.log started***********************************************")
+        patt = re.findall("\*.*started.*\*", str_all)
+        if isinstance(patt, list):
+            patt = patt[0]
+        str_every_times = str_all.split(patt)
+        # "***********************************************TextExtractor_OCR.log started***********************************************")
         # str_every_times = re.sub("\r\n\*.*\*?\r\n", "", str_every_times)
-        # patt = re.findall("^\*.*started.*\*", str_all)[0]
+        #
 
         str_every_times = [
             re.sub("\r\n\*.*\*?\r\n", "", i) for i in str_every_times if r"OCR(DlpOCR) $version$:" in i]
@@ -71,7 +74,12 @@ class Parse(object):
     def split_from_file(self, filepath: str) -> Union[None, List]:
         assert os.path.exists(filepath), print(
             os.path.abspath(filepath)+"文件不存在")
-        str_all = open(filepath, "rb").read().decode('utf-8')
+        try:
+            str_all = open(filepath, "rb").read().decode('utf-8')
+        except:
+            str_all = open(filepath, "rb").read().decode(
+                'utf-8', errors="ignore")
+
         # str_all = read_file(filepath=filepath)
         return self.split_from_str(str_all=str_all)
 
@@ -301,40 +309,51 @@ def main(root, dlpocr_dir, label_dir, result_dir):
         f.write("路径,预测文本长度,真实文本,召回率,准确率,耗时\n")
     if valid_infos is None:
         print("无有效识别文件")
+    # 求精度
+    data = pparse(dlpocr_dir, label_dir, rmsignal)
 
+    # 每次日志启动
     for valid_info in valid_infos:
         if valid_info is None:
             print("该次提取无有效识别文件")
             continue
 
-        data = pparse(dlpocr_dir, label_dir, rmsignal)
-
         for i in valid_info:
-            if i[0]+".txt" in data.keys():
-                data[i[0]+".txt"].append(float(i[1]))
+            path = i[0]+".txt"
+            if path in data.keys():
+                data[path].append(str(i[1]))
 
-        with open(result_path, "a+", encoding="utf-8") as f:
-            for key in data.keys():
-                f.write(
-                    f"{key},{data[key][0]},{data[key][1]},{data[key][2]},{data[key][3]},{data[key][4]}\n")
+    with open(result_path, "a+", encoding="utf-8") as f:
+        for key in data.keys():
+            f.write(
+                f"{key},{data[key][0]},{data[key][1]},{data[key][2]},{data[key][3]},{data[key][4]}\n")
     print("数据提取完毕")
 
 
 if __name__ == '__main__':
     print("""
-    OCR_TEST: 2.4 - 修复问题
-    使用说明：
-    1. 本程序只针对dlplog的debug日志有效
-    2. 执行工具一次，生成相应的文件结构，后根据提示添加dlpocr_label下的标签文件完毕后再执行
-    3. 该标签文件与图片一一对应，如1.png-> 1.txt
-    3. 生成的结果dlpocr_result目录下的result.csv中
-    4. 使用日期输入，要求文件格式为TextExtractor_OCR[日期].log，该日期需要以2开头
-    5. 清理程序，只清理dlpocr_dir（dlp文本识别结果）、dlpocr_result（dlp性能提取结果）
-    6. 包含两种计算，一种是只计算中英文数字，一种是所有字符串，默认选第一种
-    note：程序可分析多次启动，但不建议，单次启动单次分析
+OCR_TEST
+版本说明：
+V2.5 - 优化提取速度，提高兼容性
+支持：
+    DlpULog 2.0.1712 
+    DlpOCR 1.0(中文路径图片不支持
+    DlpOCR 2.0(支持中英文)
+使用说明：
+    1. 第一次运行，生成目录结构，添加标签文件到dlpocr_label，之后运行第二次
+    2. 清理程序，只清理dlpocr_dir（dlp文本识别结果）、dlpocr_result（dlp性能提取结果）
+    3. 使用日期输入，要求文件格式为TextExtractor_OCR[日期].log，该日期需要以2开头
+    4. 包含两种计算，一种是只计算中英文数字，一种是所有字符串，默认选第一种
+    5. 生成的结果dlpocr_result目录下的result.csv中
+note：
+    本程序只针对开启debug的dlplog日志有效
+    标签文件与图片一一对应，如1.png-> 1.txt
+    程序可分析多次启动，但不建议，单次启动单次分析
+    清理时注意备份好需要的文件，当然重新跑一遍也是可以啦！！！
     """)
+    print("--"*50)
     mode = input("请选择模式  1)ocr性能提取, 2)清理提取数据的文件夹:")
-    if mode == "1":
+    if mode == "1" or mode == "0":
         print(f"两种输入形式：\n1. 输入完整路径，如：I:\Release\log\TextExtractor_OCR20211129.log\n2. 输入日期，如20211129,等同于1，但该工具路径要与日志文件同级目录")
         filepath = input("待分析日志文件路径：")
         if filepath[0] == "2":
@@ -353,7 +372,7 @@ if __name__ == '__main__':
         result_dir = os.path.join(root, "dlpocr_result")
         main(root, dlpocr_dir, label_dir, result_dir)
     if mode == "2":
-        filepath = input("请输入要清理的文件夹对应的日志文件名：")
+        filepath = input("待清理日志文件夹的日志文件名：")
         if filepath[0] == "2":
             filepath = f"TextExtractor_OCR{filepath}.log"
         if not os.path.exists(filepath):
